@@ -74,12 +74,7 @@ namespace vflib
 		bool IsFeasiblePair(nodeID_t n1, nodeID_t n2);
 		void AddPair(nodeID_t n1, nodeID_t n2);
 		inline bool IsGoal() const { return core_len == n1; };
-		inline bool IsDead() const {
-			if (n1 > n2) {
-				return true;
-			}
-			return false;
-		}
+		inline bool IsDead() const { return false; };
 	};
 
 

@@ -907,9 +907,6 @@ namespace vflib
 		bool VF3State<Node1, Node2, Edge1, Edge2, 
 			NodeComparisonFunctor, EdgeComparisonFunctor>::IsDead() const 
 	{
-		if (n1 != n2) {
-			return true;
-		}
 
 		if (t1both_len[core_len] != t2both_len ||
 			t1out_len[core_len] != t2out_len ||

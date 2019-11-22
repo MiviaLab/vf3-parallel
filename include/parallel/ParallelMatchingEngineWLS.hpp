@@ -21,8 +21,17 @@
 #include <limits>
 #include <cstdint>
 
+#ifndef WIN32
+#include <unistd.h>
+#include <sys/time.h>
+#else
+#include <Windows.h>
+#include <stdint.h>
+#endif
+
 #include "ARGraph.hpp"
 #include "MatchingEngine.hpp"
+
 
 namespace vflib {
 
@@ -38,22 +47,27 @@ private:
 
 	using MatchingEngine<VFState>::solutions;
 	using MatchingEngine<VFState>::visit;
-	//using MatchingEngine<VFState>::solCount;
+	using MatchingEngine<VFState>::solCount;
 	using MatchingEngine<VFState>::storeSolutions;
+	using MatchingEngine<VFState>::fist_solution_time;
 
 	std::mutex statesMutex;
 	std::mutex solutionsMutex;
+	std::atomic<bool> once;
 
-	std::atomic<uint32_t> solCount;
+	//std::atomic<uint32_t> solCount;
     int16_t cpu;
     int16_t numThreads;
 	std::vector<std::thread> pool;
 	std::atomic<int16_t> activeWorkerCount;
 
-    uint16_t ssrLimitLevelForGlobalStack; //all the states belonging to ssr levels leq the this limit are put inside the global stack
-	uint16_t localStackLimitSize;         //limit size for the local stack. All the exceeding states are stored in the global stack
-	std::vector<std::vector<VFState*> >localStateStack; //Local stack address by thread-id (ids are assigned by the pool)
+    uint16_t ssrLimitLevelForGlobalStack; 					//all the states belonging to ssr levels leq the this limit are put inside the global stack
+	uint16_t localStackLimitSize;         					//limit size for the local stack. All the exceeding states are stored in the global stack
+	std::vector<std::vector<VFState*> >localStateStack; 	//Local stack address by thread-id (ids are assigned by the pool)
     std::stack<VFState*> globalStateStack;
+	struct timeval time;
+
+	bool workerCountIncrement;
 
 public:
 	ParallelMatchingEngineWLS(unsigned short int numThreads,
@@ -63,18 +77,17 @@ public:
         unsigned short int localStackLimitSize = 50,  
         MatchingVisitor<VFState> *visit = NULL):
 		MatchingEngine<VFState>(visit, storeSolutions),
-		solCount(0),
+		once(false),
 		cpu(cpu),
 		numThreads(numThreads),
 		pool(numThreads),
 		activeWorkerCount(0),
         ssrLimitLevelForGlobalStack(ssrLimitLevelForGlobalStack),
         localStackLimitSize(localStackLimitSize),
-        localStateStack(numThreads){}
+        localStateStack(numThreads),
+		workerCountIncrement(true){}
 
 	~ParallelMatchingEngineWLS(){}
-
-	inline size_t GetSolutionsCount() { return (size_t)solCount; }
 
     bool FindAllMatchings(VFState& s)
 	{
@@ -96,6 +109,12 @@ public:
 		return pool.size();
 	}
 
+	inline void ResetSolutionCounter()
+	{
+		solCount = 0;
+		once = false;
+	}
+
 private:
 
 	void Run(ThreadId thread_id) 
@@ -109,18 +128,19 @@ private:
 				//std::cout<<"Processing "<< thread_id << std::endl;
 				ProcessState(s, thread_id);
 				delete s;
-				activeWorkerCount--;
 			}
-			s = GetState(thread_id);
-		}while(s || activeWorkerCount>0);
+		}while(GetState(thread_id, &s));
 	}
 
 	bool ProcessState(VFState *s, ThreadId thread_id)
 	{
 		if (s->IsGoal())
 		{
-			//std::cout << "Solution" << std::endl;
+			if(!once.exchange(true))
+				gettimeofday(&(this->fist_solution_time), NULL);
+			
 			solCount++;
+
 			if(storeSolutions)
 			{
 				std::lock_guard<std::mutex> guard(solutionsMutex);
@@ -176,27 +196,41 @@ private:
 
 	//In questo modo, quando sono finiti gli stati i thread rimangono appesi.
 	//Come facciamo a definire una condizione di chiusura dei thread?
-	VFState* GetState(ThreadId thread_id)
+	bool GetState(ThreadId thread_id, VFState** res)
 	{
-		VFState* res = NULL;
+		*res = NULL;
         //Getting from local stack firts
         if(localStateStack[thread_id].size())
         {
-           res = localStateStack[thread_id].back();
+           *res = localStateStack[thread_id].back();
            localStateStack[thread_id].pop_back();
-		   activeWorkerCount++;
         }
         else
         {
-            std::unique_lock<std::mutex> stateLock(statesMutex);
+			std::unique_lock<std::mutex> stateLock(statesMutex);
             if(globalStateStack.size())
             {
-                res = globalStateStack.top();
+                *res = globalStateStack.top();
                 globalStateStack.pop();
-				activeWorkerCount++;
+				if(workerCountIncrement)
+				{
+					activeWorkerCount++;
+					workerCountIncrement=false;
+				}
             }
+			else
+			{
+				if(!workerCountIncrement)
+				{
+					activeWorkerCount--;
+					workerCountIncrement=true;
+				}
+
+				if(activeWorkerCount <= 0);
+					return false;
+			}
         }
-		return res;
+		return true;
 	}
 
 	void StartPool()

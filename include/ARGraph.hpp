@@ -29,15 +29,21 @@ namespace vflib
 	 * This class should be used for void attributes of nodes or edges.
 	 */
 	class Empty {
-	public:
-		friend std::istream& operator>>(std::istream& is, Empty& e)
-		{
-			return is;
-		}
+		public:
+			friend std::istream& operator>>(std::istream& is, Empty& e)
+			{
+				return is;
+			}
 
-		bool operator== (Empty &e2) {
-			return true;
-		}
+			bool operator== (Empty &e2) {
+				return true;
+			}
+
+			friend inline bool operator< (const Empty & s1, const Empty & s2)
+			{
+				return  true;
+			}
+
 	};
 
 	/**
@@ -140,6 +146,12 @@ namespace vflib
 		typedef std::vector<Node> NodeAttrVector;
 
 		uint32_t n;                               /**<number of nodes  */
+		uint32_t n_attr_count;					  /**<number of different node attributes */
+		uint32_t e_attr_count;					  /**<number of different edge attributes */
+		uint32_t e_count;						  /**<number of edges */
+		uint32_t e_out_count;					  /**<total number of out edges */
+		uint32_t e_in_count;					  /**<total number of in edges */
+		uint32_t node_label_count;				  /**<number of nodes labels */
 		uint32_t max_deg_in;                      /**<max in degree over all the nodes*/
 		uint32_t max_deg_out;                     /**<max out degree over all the nodes */
 		uint32_t max_degree;                      /**<max degree over all the nodes */
@@ -155,6 +167,9 @@ namespace vflib
 		ARGraph(ARGLoader<Node, Edge> *loader);
 
 		uint32_t NodeCount() const;
+		uint32_t EdgeCount() const;
+		uint32_t InEdgeCount() const;
+		uint32_t OutEdgeCount() const;
 
 		Node& GetNodeAttr(nodeID_t i);
 		void SetNodeAttr(nodeID_t i, Node &attr);
@@ -190,6 +205,17 @@ namespace vflib
 		*/
 		uint32_t MaxDegree() const { return max_degree; }
 
+		/**
+		* @brief Number of different node attibute in the graph
+		* @returns Number of different node attibute
+		*/
+		uint32_t NodeAttrCount() const { return n_attr_count; }
+
+		/**
+		* @brief Number of different edge attibute in the graph
+		* @returns Number of different edge attibute
+		*/
+		uint32_t EdgeAttrCount() const { return e_attr_count; }
 
 		void VisitInEdges(nodeID_t node, edge_visitor vis, param_type param);
 		void VisitOutEdges(nodeID_t node, edge_visitor vis, param_type param);
@@ -204,6 +230,36 @@ namespace vflib
 	inline uint32_t ARGraph<Node, Edge>::NodeCount() const
 	{
 		return n;
+	}
+
+	/**
+	* @brief Returns the number of edge in the graph
+	* @returns Number of edge
+	*/
+	template <typename Node, typename Edge>
+	inline uint32_t ARGraph<Node, Edge>::EdgeCount() const
+	{
+		return e_count;
+	}
+
+		/**
+	* @brief Returns the number of in edges in the graph
+	* @returns Number of in edges
+	*/
+	template <typename Node, typename Edge>
+	inline uint32_t ARGraph<Node, Edge>::InEdgeCount() const
+	{
+		return e_in_count;
+	}
+
+		/**
+	* @brief Returns the number of out edges in the graph
+	* @returns Number of out edges
+	*/
+	template <typename Node, typename Edge>
+	inline uint32_t ARGraph<Node, Edge>::OutEdgeCount() const
+	{
+		return e_out_count;
 	}
 
 	/**
@@ -522,16 +578,34 @@ namespace vflib
 	ARGraph<Node, Edge>::ARGraph(ARGLoader<Node, Edge> *loader)
 	{
 		n = loader->NodeCount();
+		e_count = 0;
+		e_out_count = 0;
+		e_in_count = 0;
+		n_attr_count = 0;
+		e_attr_count = 0;
+		std::map<Node, bool> attributemap;
+		std::map<Edge, bool> e_attributemap;
+
 		std::vector<uint32_t> in_node_count(n, 0);
 		max_deg_in = max_deg_out = max_degree = 0;
 
 		uint32_t i, j;
 		for (i = 0; i < n; i++)
-			attr.push_back(loader->GetNodeAttr(i));
+		{
+			Node attribute = loader->GetNodeAttr(i);
+			attr.push_back(attribute);
+
+			if(!attributemap.count(attribute))
+			{ 
+				attributemap[attribute]=true;
+				n_attr_count++;
+			}
+		}
 
 		for (i = 0; i < n; i++)
 		{
 			uint32_t k = loader->OutEdgeCount(i);
+			e_out_count += k;
 
 			if (k > max_deg_out)
 				max_deg_out = k;
@@ -552,6 +626,7 @@ namespace vflib
 		for (i = 0; i < n; i++)
 		{
 			uint32_t k = in_node_count[i];
+			e_in_count += k;
 
 			if (k > max_deg_in)
 				max_deg_in = k;
@@ -566,9 +641,16 @@ namespace vflib
 			{
 				if (HasEdge(j, i))
 				{
+					Edge edge_attr = GetEdgeAttr(j, i);
 					in[i].push_back(j);
-					in_attr[i].push_back(GetEdgeAttr(j, i));
+					in_attr[i].push_back(edge_attr);
 					l++;
+
+					if(!e_attributemap.count(edge_attr))
+					{ 
+						e_attributemap[edge_attr]=true;
+						e_attr_count++;
+					}
 				}
 			}
 
@@ -577,6 +659,7 @@ namespace vflib
 
 		for (i = 0; i < n; i++) {
 			uint32_t count = in_node_count[i] + loader->OutEdgeCount(i);
+			e_count += count;
 			if (count > max_degree) {
 				max_degree = count;
 			}

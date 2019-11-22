@@ -91,14 +91,8 @@ public:
   bool NextPair(nodeID_t *pn1, nodeID_t *pn2, nodeID_t prev_n1=NULL_NODE, nodeID_t prev_n2=NULL_NODE);
   bool IsFeasiblePair(nodeID_t n1, nodeID_t n2);
   void AddPair(nodeID_t n1, nodeID_t n2);
-  bool IsGoal() { return core_len==n1; };
-  inline bool IsDead()
-  {
-	  if (n1 > n2){
-	    return true;
-	  }
-	  return false;
-  }
+  inline bool IsGoal() { return core_len==n1; };
+  inline bool IsDead(){return false; };
 
   int CoreLen() { return core_len; }
   
@@ -501,7 +495,8 @@ bool VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,EdgeCompa
 template <typename Node1, typename Node2,
 typename Edge1, typename Edge2,
 typename NodeComparisonFunctor, typename EdgeComparisonFunctor>
-void VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,EdgeComparisonFunctor>::AddPair(nodeID_t node1, nodeID_t node2)
+void VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,
+EdgeComparisonFunctor>::AddPair(nodeID_t node1, nodeID_t node2)
 {
 
   /*std::cout<<"\nAP:";
@@ -525,36 +520,6 @@ void VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,EdgeCompa
   core_2[node2]=node1;
 
 }
-
-/*----------------------------------------------------------------
- * Undoes the changes to the shared vectors made by the
- * current state. Assumes that at most one AddPair has been
- * performed.
- ----------------------------------------------------------------*/
-/*template <typename Node1, typename Node2,
-typename Edge1, typename Edge2,
-typename NodeComparisonFunctor, typename EdgeComparisonFunctor>
-void VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,EdgeComparisonFunctor>::BackTrack()
-{
-  assert(core_len - orig_core_len <= 1);
-  if(added_node1 != NULL_NODE)
-  {
-  int other_c = 0;
-  int node_c = class_1[added_node1];
-
-  if (orig_core_len < core_len)
-    { int i, node2;
-      node2 = core_1[added_node1];
-
-      core_1[added_node1] = NULL_NODE;
-      core_2[node2] = NULL_NODE;
-
-      core_len=orig_core_len;
-      core_len_c[node_c]--;
-      added_node1 = NULL_NODE;
-    }
-  }
-}*/
 
 }
 #endif

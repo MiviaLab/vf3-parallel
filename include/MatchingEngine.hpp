@@ -8,11 +8,20 @@
 #ifndef MATCH_H
 #define MATCH_H
 
+#include <atomic>
 #include <stack>
 #include <string>
 #include <iostream>
 #include <sstream>
 #include "ARGraph.hpp"
+
+#ifndef WIN32
+#include <unistd.h>
+#include <sys/time.h>
+#else
+#include <Windows.h>
+#include <stdint.h>
+#endif
 
 namespace vflib
 {
@@ -54,8 +63,9 @@ namespace vflib
 		*/
 		std::vector<MatchingSolution> solutions;
 		MatchingVisitor<VFState> *visit;
-		size_t solCount;
+		std::atomic<uint32_t> solCount;
 		bool storeSolutions;
+		struct timeval fist_solution_time;
 
 	public:
 		MatchingEngine(bool storeSolutions = false): visit(NULL), 
@@ -64,11 +74,23 @@ namespace vflib
 		MatchingEngine(MatchingVisitor<VFState> *visit, bool storeSolutions = false):
 		 visit(visit), solCount(0), storeSolutions(storeSolutions){}
 
-		inline size_t GetSolutionsCount() { return solCount; }
+		inline size_t GetSolutionsCount() { return (size_t)solCount; }
 		
 		inline void GetSolutions(std::vector<MatchingSolution>& sols)
 		{
 			sols = solutions;
+		}
+
+		inline void EmptySolutions() {solutions.clear();}
+
+		inline void ResetSolutionCounter()
+		{
+			solCount = 0;
+		}
+
+		inline struct timeval GetFirstSolutionTime()
+		{
+			return fist_solution_time;
 		}
 
 		inline std::string SolutionToString(MatchingSolution& sol)
@@ -87,8 +109,7 @@ namespace vflib
 		}
 
 		/**
-		* @brief  Finds a matching between two graph, if it exists, given the
-		* initial state of the matching process.
+		* @brief  Finds a matching between two graph, if it exists, given the initial state of the matching process.
 		* @param [in] s Initial VFState.
 		* @return TRUE If the matching process finds a solution.
 		* @return FALSE If the matching process doesn't find solutions.
@@ -131,8 +152,7 @@ namespace vflib
 		}
 
 		/**
-		* @brief Visits all the matchings between two graphs, starting
-		* from state s.
+		* @brief Visits all the matchings between two graphs, starting from state s.
 		* @param [in] s Initial VFState.
 		* @param [in/out] usr_data User defined parameter for the visitor.
 		* @return TRUE If if the caller must stop the visit.
@@ -142,6 +162,9 @@ namespace vflib
 		{
 			if (s.IsGoal())
 			{
+				if(!solCount)
+					gettimeofday(&fist_solution_time, NULL);
+
 				solCount++;
 				if(storeSolutions)
 				{

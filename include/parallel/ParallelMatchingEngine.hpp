@@ -20,6 +20,14 @@ Parallel Matching Engine with global state stack only (no look-free stack)
 #include <stack>
 #include <cstdint>
 
+#ifndef WIN32
+#include <unistd.h>
+#include <sys/time.h>
+#else
+#include <Windows.h>
+#include <stdint.h>
+#endif
+
 #include "ARGraph.hpp"
 #include "MatchingEngine.hpp"
 
@@ -33,19 +41,23 @@ private:
 	typedef unsigned short ThreadId;
 	using MatchingEngine<VFState>::solutions;
 	using MatchingEngine<VFState>::visit;
-	//using MatchingEngine<VFState>::solCount;
+	using MatchingEngine<VFState>::solCount;
 	using MatchingEngine<VFState>::storeSolutions;
+	using MatchingEngine<VFState>::fist_solution_time;
 
 	std::mutex statesMutex;
 	std::mutex solutionsMutex;
+	std::atomic<bool> once;
 
-	std::atomic<uint32_t> solCount;
 	int16_t cpu;
 	int16_t numThreads;
 	std::vector<std::thread> pool;
 	std::atomic<int16_t> activeWorkerCount;
 	bool teminate;
 	std::stack<VFState*> globalStateStack;
+	struct timeval time;
+
+	bool workerCountIncrement;
 	
 public:
 	ParallelMatchingEngine(unsigned short int numThreads, 
@@ -53,15 +65,14 @@ public:
 		short int cpu = -1,
 		MatchingVisitor<VFState> *visit = NULL):
 		MatchingEngine<VFState>(visit, storeSolutions),
-		solCount(0),
+		once(false),
 		cpu(cpu),
 		numThreads(numThreads),
 		pool(numThreads),
-		activeWorkerCount(0){}
+		activeWorkerCount(0),
+		workerCountIncrement(true){}
 
 	~ParallelMatchingEngine(){}
-
-	inline size_t GetSolutionsCount() { return (size_t) solCount; }
 
 	bool FindAllMatchings(VFState& s)
 	{
@@ -83,6 +94,12 @@ public:
 		return pool.size();
 	}
 
+	inline void ResetSolutionCounter()
+	{
+		solCount = 0;
+		once = false;
+	}
+
 private: 
 
 	inline unsigned GetRemainingStates() {
@@ -98,19 +115,22 @@ private:
 			if(s)
 			{
 				ProcessState(s);
-				delete s;
-				activeWorkerCount--;	
+				delete s;	
 			}
-			s = GetState();
-		}while(s || activeWorkerCount>0);
+		}while(GetState(&s));
 	}
 
 	bool ProcessState(VFState *s)
 	{
 		if (s->IsGoal())
 		{
-			//std::cout << "Solution" << std::endl;
+			if(!once.exchange(true, std::memory_order_acq_rel))
+			{
+				gettimeofday(&(this->fist_solution_time),NULL);
+			}
+
 			solCount++;
+
 			if(storeSolutions)
 			{
 				std::lock_guard<std::mutex> guard(solutionsMutex);
@@ -147,19 +167,32 @@ private:
 		globalStateStack.push(s);
 	}
 
-	//In questo modo, quando sono finiti gli stati i thread rimangono appesi.
-	//Come facciamo a definire una condizione di chiusura dei thread?
-	VFState* GetState()
+	bool GetState(VFState** res)
 	{
-		VFState* res = NULL;
+		*res = NULL;
 		std::unique_lock<std::mutex> stateLock(statesMutex);
 		if(globalStateStack.size())
 		{
-			res = globalStateStack.top();
+			*res = globalStateStack.top();
 			globalStateStack.pop();
-			activeWorkerCount++;
+			if(workerCountIncrement)
+			{
+				activeWorkerCount++;
+				workerCountIncrement=false;
+			}
 		}
-		return res;
+		else
+		{
+			if(!workerCountIncrement)
+			{
+				activeWorkerCount--;
+				workerCountIncrement=true;
+			}
+
+			if(activeWorkerCount <= 0);
+				return false;
+		}
+		return true;
 	}
 
 #ifndef WIN32
