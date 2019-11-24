@@ -33,6 +33,9 @@ Parallel Matching Engine with global state stack only (no look-free stack)
 
 namespace vflib {
 
+typedef unsigned short ThreadId;
+constexpr ThreadId NULL_THREAD = (std::numeric_limits<ThreadId>::max)();
+
 template<typename VFState>
 class ParallelMatchingEngine
 		: public MatchingEngine<VFState>
@@ -57,7 +60,7 @@ private:
 	std::stack<VFState*> globalStateStack;
 	struct timeval time;
 
-	bool workerCountIncrement;
+	std::vector<bool> workerCountIncrement;
 	
 public:
 	ParallelMatchingEngine(unsigned short int numThreads, 
@@ -70,13 +73,13 @@ public:
 		numThreads(numThreads),
 		pool(numThreads),
 		activeWorkerCount(0),
-		workerCountIncrement(true){}
+		workerCountIncrement(numThreads,true){}
 
 	~ParallelMatchingEngine(){}
 
 	bool FindAllMatchings(VFState& s)
 	{
-		ProcessState(&s);
+		ProcessState(&s, NULL_THREAD);
 		StartPool();
 
 		//Waiting for process thread
@@ -107,20 +110,20 @@ private:
 		return globalStateStack.size();
 	}
 
-	void Run(int thread_id) 
+	void Run(ThreadId thread_id) 
 	{
 		VFState* s = NULL;
 		do
 		{
 			if(s)
 			{
-				ProcessState(s);
+				ProcessState(s, thread_id);
 				delete s;	
 			}
-		}while(GetState(&s));
+		}while(GetState(thread_id, &s));
 	}
 
-	bool ProcessState(VFState *s)
+	bool ProcessState(VFState *s, ThreadId thread_id)
 	{
 		if (s->IsGoal())
 		{
@@ -155,19 +158,19 @@ private:
 			{
 				VFState* s1 = new VFState(*s);
 				s1->AddPair(n1, n2);
-				PutState(s1);
+				PutState(s1, thread_id);
 			}
 		}		
 		return false;
 		
 	}
 
-	void PutState(VFState* s) {
+	void PutState(VFState* s, ThreadId thread_id) {
 		std::lock_guard<std::mutex> guard(statesMutex);
 		globalStateStack.push(s);
 	}
 
-	bool GetState(VFState** res)
+	bool GetState(ThreadId thread_id, VFState** res)
 	{
 		*res = NULL;
 		std::unique_lock<std::mutex> stateLock(statesMutex);
@@ -175,22 +178,24 @@ private:
 		{
 			*res = globalStateStack.top();
 			globalStateStack.pop();
-			if(workerCountIncrement)
+			if(workerCountIncrement[thread_id])
 			{
 				activeWorkerCount++;
-				workerCountIncrement=false;
+				workerCountIncrement[thread_id]=false;
 			}
 		}
 		else
 		{
-			if(!workerCountIncrement)
+			if(!workerCountIncrement[thread_id])
 			{
 				activeWorkerCount--;
-				workerCountIncrement=true;
+				workerCountIncrement[thread_id]=true;
 			}
 
-			if(activeWorkerCount <= 0);
+			if(activeWorkerCount <= 0)
+			{
 				return false;
+			}
 		}
 		return true;
 	}

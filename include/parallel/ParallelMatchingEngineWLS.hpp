@@ -64,10 +64,9 @@ private:
     uint16_t ssrLimitLevelForGlobalStack; 					//all the states belonging to ssr levels leq the this limit are put inside the global stack
 	uint16_t localStackLimitSize;         					//limit size for the local stack. All the exceeding states are stored in the global stack
 	std::vector<std::vector<VFState*> >localStateStack; 	//Local stack address by thread-id (ids are assigned by the pool)
+	std::vector<bool> workerCountIncrement;
     std::stack<VFState*> globalStateStack;
 	struct timeval time;
-
-	bool workerCountIncrement;
 
 public:
 	ParallelMatchingEngineWLS(unsigned short int numThreads,
@@ -85,7 +84,7 @@ public:
         ssrLimitLevelForGlobalStack(ssrLimitLevelForGlobalStack),
         localStackLimitSize(localStackLimitSize),
         localStateStack(numThreads),
-		workerCountIncrement(true){}
+		workerCountIncrement(numThreads, true){}
 
 	~ParallelMatchingEngineWLS(){}
 
@@ -173,25 +172,16 @@ private:
 	}
 
 	void PutState(VFState* s, ThreadId thread_id) {
-
-        //First states go in the global stack
-        if(thread_id == NULL_THREAD)
-        {
-            std::lock_guard<std::mutex> guard(statesMutex);
-		    globalStateStack.push(s);
-            return;
-        }
-
-        if(s->CoreLen() > ssrLimitLevelForGlobalStack &&
-            localStateStack[thread_id].size() < localStackLimitSize)
-        {
-            localStateStack[thread_id].push_back(s);
-        }
-        else
-        {
-		    std::lock_guard<std::mutex> guard(statesMutex);
-		    globalStateStack.push(s);
-        }
+		if(thread_id == NULL_THREAD || 
+			s->CoreLen() < ssrLimitLevelForGlobalStack || 
+			localStateStack[thread_id].size() > localStackLimitSize)
+		{
+			std::lock_guard<std::mutex> guard(statesMutex);
+			globalStateStack.push(s);
+		}else
+		{
+			localStateStack[thread_id].push_back(s);
+		}
 	}
 
 	//In questo modo, quando sono finiti gli stati i thread rimangono appesi.
@@ -212,22 +202,24 @@ private:
             {
                 *res = globalStateStack.top();
                 globalStateStack.pop();
-				if(workerCountIncrement)
+				if(workerCountIncrement[thread_id])
 				{
 					activeWorkerCount++;
-					workerCountIncrement=false;
+					workerCountIncrement[thread_id]=false;
 				}
             }
 			else
 			{
-				if(!workerCountIncrement)
+				if(!workerCountIncrement[thread_id])
 				{
 					activeWorkerCount--;
-					workerCountIncrement=true;
+					workerCountIncrement[thread_id]=true;
 				}
 
-				if(activeWorkerCount <= 0);
+				if(activeWorkerCount <= 0)
+				{	
 					return false;
+				}
 			}
         }
 		return true;
