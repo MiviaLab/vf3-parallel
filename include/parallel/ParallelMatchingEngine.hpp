@@ -40,7 +40,7 @@ template<typename VFState>
 class ParallelMatchingEngine
 		: public MatchingEngine<VFState>
 {
-private:
+protected:
 	typedef unsigned short ThreadId;
 	using MatchingEngine<VFState>::solutions;
 	using MatchingEngine<VFState>::visit;
@@ -56,7 +56,6 @@ private:
 	int16_t numThreads;
 	std::vector<std::thread> pool;
 	std::atomic<int16_t> activeWorkerCount;
-	bool teminate;
 	std::stack<VFState*> globalStateStack;
 	struct timeval time;
 
@@ -120,7 +119,14 @@ private:
 				ProcessState(s, thread_id);
 				delete s;	
 			}
-		}while(GetState(thread_id, &s));
+		}while(GetState(&s, thread_id));
+	}
+
+	inline void GenerateState(VFState *s, nodeID_t n1, nodeID_t n2, ThreadId thread_id)
+	{
+		VFState* s1 = new VFState(*s);
+		s1->AddPair(n1, n2);
+		PutState(s1, thread_id);
 	}
 
 	bool ProcessState(VFState *s, ThreadId thread_id)
@@ -156,9 +162,7 @@ private:
 		{
 			if (s->IsFeasiblePair(n1, n2))
 			{
-				VFState* s1 = new VFState(*s);
-				s1->AddPair(n1, n2);
-				PutState(s1, thread_id);
+				GenerateState(s, n1, n2, thread_id);
 			}
 		}		
 		return false;
@@ -170,10 +174,11 @@ private:
 		globalStateStack.push(s);
 	}
 
-	bool GetState(ThreadId thread_id, VFState** res)
+	bool GetState(VFState** res, ThreadId thread_id)
 	{
 		*res = NULL;
 		std::unique_lock<std::mutex> stateLock(statesMutex);
+		
 		if(globalStateStack.size())
 		{
 			*res = globalStateStack.top();

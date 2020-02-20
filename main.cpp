@@ -45,10 +45,10 @@ typedef VF3ParallelSubState<data_t, data_t, Empty, Empty> state_t;
 #elif defined(VF3PV2)
 #include "parallel/ParallelMatchingEngineWLS.hpp"
 typedef VF3ParallelSubState<data_t, data_t, Empty, Empty> state_t;
-#define MATCHING_INIT ParallelMatchingEngineWLS<state_t > me(numOfThreads, false, cpu, 2, 100)
+#define MATCHING_INIT ParallelMatchingEngineWLS<state_t > me(numOfThreads, false, cpu, 3, n1)
 #elif defined(VF3L)
 typedef VF3LightSubState<data_t, data_t, Empty, Empty> state_t;
-#define MATCHING_INIT MatchingEngine<state_t > me(false)
+#define MATCHING_INIT MatchingEngine<state_t > me(true)
 #endif
 
 #ifdef WIN32
@@ -81,6 +81,7 @@ int32_t main(int32_t argc, char** argv)
 
 	char *pattern, *target;
 	int numOfThreads = 1;
+	int n1 = 0;
 	short int cpu = -1;
 	float limit = TIME_LIMIT;
 	double timeAll = 0;
@@ -118,6 +119,8 @@ int32_t main(int32_t argc, char** argv)
 	ARGraph<data_t, Empty> patt_graph(&pattloader);
 	ARGraph<data_t, Empty> targ_graph(&targloader);
 
+        n1 = patt_graph.NodeCount();
+
 	NodeClassifier<data_t, Empty> classifier(&targ_graph);
 	NodeClassifier<data_t, Empty> classifier2(&patt_graph, classifier);
 	std::vector<uint32_t> class_patt = classifier2.GetClasses();
@@ -136,14 +139,14 @@ int32_t main(int32_t argc, char** argv)
     timeAll = ((end.tv_sec  - start.tv_sec) * 1000000u + 
          end.tv_usec - start.tv_usec) / 1.e6;
 
-	/*me.GetSolutions(solutions);
+	me.GetSolutions(solutions);
 
 	std::cout << "Solution Found" << std::endl;
 	std::vector<MatchingSolution>::iterator it;
 	for(it = solutions.begin(); it != solutions.end(); it++)
 	{
 		std::cout<< me.SolutionToString(*it) << std::endl;
-	}*/
+	}
 	/*std::cout << "SORT: ";
 	for(uint32_t i = 0; i < sorted.size(); i++)
 	{

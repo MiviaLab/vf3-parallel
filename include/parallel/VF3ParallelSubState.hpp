@@ -49,9 +49,9 @@ private:
   nodeID_t *order;     //Order to traverse node on the first graph
 
   //CORE SET SIZES
-  int core_len;       //Current lenght of the core set
-  int orig_core_len;  //Core set lenght of the previous state
-  //int *core_len_c;    //Core set lenght for each class
+  int core_len;       //Current length of the core set
+  int orig_core_len;  //Core set length of the previous state
+  //int *core_len_c;    //Core set length for each class
 
   int added_node1;    //Last added node
 
@@ -167,6 +167,7 @@ typename Edge1, typename Edge2,
 typename NodeComparisonFunctor, typename EdgeComparisonFunctor>
 VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,EdgeComparisonFunctor>::
 	VF3ParallelSubState(const VF3ParallelSubState &state):
+  //Qui clono tutti gli insiemi
 	core_1(state.core_1), core_2(state.core_2), core_len_c(state.core_len_c),
 	predecessors(state.predecessors), dir(state.dir)
 {
@@ -184,6 +185,8 @@ VF3ParallelSubState<Node1,Node2,Edge1,Edge2,NodeComparisonFunctor,EdgeComparison
   core_len=orig_core_len=state.core_len;
   added_node1=NULL_NODE;
 }
+
+
 
 template <typename Node1, typename Node2,
 typename Edge1, typename Edge2,
@@ -509,7 +512,7 @@ EdgeComparisonFunctor>::AddPair(nodeID_t node1, nodeID_t node2)
   assert(core_len<n2);
   assert(class_1[node1] == class_2[node2]);
 
-  //Updating the core lenght
+  //Updating the core length
   core_len++;
   added_node1=node1;
   int node_c = class_1[node1];
