@@ -12,4 +12,4 @@ If you use this algorithm, please cite also the following references:
 1. Challenging the time complexity of exact subgraph isomorphism for huge and dense graphs with VF3 - Carletti V., Foggia P., Saggese A., Vento M. - IEEE transactions on pattern analysis and machine intelligence - 2018
 2. Introducing VF3: A new algorithm for subgraph isomorphism - Carletti V., Foggia P., Saggese A., Vento M. - International Workshop on Graph-Based Representations in Pattern Recognition - 2017
 3. The VF3-Light Subgraph Isomorphism Algorithm: When Doing Less Is More Effective - V. Carletti, P. Foggia, A. Greco, A. Saggese, M. Vento - Joint IAPR International Workshops on Statistical Techniques in Pattern Recognition (SPR) and Structural and Syntactic Pattern Recognition (SSPR) - 2018
-
+4. A Parallel Algorithm for Subgraph Isomorphism -  V. Carletti, P. Foggia, P. Ritrovato, M. Vento, V. Vigilante - International Workshop on Graph-Based Representations in Pattern Recognition - 2019
