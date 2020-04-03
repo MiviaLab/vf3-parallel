@@ -177,7 +177,7 @@ private:
 	bool GetState(VFState** res, ThreadId thread_id)
 	{
 		*res = NULL;
-		std::unique_lock<std::mutex> stateLock(statesMutex);
+		std::lock_guard<std::mutex> stateLock(statesMutex);
 		
 		if(globalStateStack.size())
 		{
