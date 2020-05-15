@@ -1,5 +1,7 @@
 # vf3-parallel (VF3P)
 
+*The parallel version has been integreted in the [official vf3lib repository](https://github.com/MiviaLab/vf3lib)
+
 This library contains a parallel version of VF3. The library has been completely renewed and has been designed to be extendend with pure c++ parallel structures.
 
 Actually the library contatins the algorithms VF3P and VF3P-LS described in the following paper:
